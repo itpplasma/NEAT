@@ -160,11 +160,24 @@ if(INSTALL_SIMPLE)
     add_subdirectory(external/simple)
     # include_directories("${CMAKE_CURRENT_BINARY_DIR}/external/simple")
     # add_subdirectory(src/neatf90)
+    if (TARGET _pysimple)
+        set_target_properties(_pysimple PROPERTIES
+            BUILD_RPATH "$ORIGIN"
+            INSTALL_RPATH "$ORIGIN"
+        )
+    endif()
 endif()
 
 # Add gyronimo with VMEC support
 set(BUILD_VMEC_SUPPORT "ON")
 add_subdirectory(external/gyronimo)
+if (CMAKE_LIBRARY_OUTPUT_DIRECTORY)
+    set_target_properties(gyronimo PROPERTIES
+        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
+        LIBRARY_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}"
+    )
+endif()
 
 # Add pybind11 include directories
 execute_process(
@@ -205,6 +218,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE gyronimo)
 target_link_libraries(${PROJECT_NAME} PRIVATE ${GSL_LIBRARIES})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${Boost_LIBRARIES})
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    BUILD_RPATH "$ORIGIN"
+    INSTALL_RPATH "$ORIGIN"
+)
 
 # Add the profiling executable
 add_library(profiling_lib

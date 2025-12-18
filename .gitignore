@@ -8,6 +8,8 @@
 # Other files
 src/results
 results
+src/lib*.so*
+src/pysimple.py
 *.prof
 *.profile
 tests/pylint.svg

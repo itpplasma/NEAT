@@ -3,6 +3,8 @@ import os
 import sys
 import json
 import subprocess
+import shutil
+import site
 from pathlib import Path
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
@@ -110,6 +112,47 @@ class CMakeBuild(build_ext):
         subprocess.check_call(
             ["cmake", "--build", "."] + build_args, cwd=self.build_temp
         )
+
+        project_src_dir = fldr_path / "src"
+        if project_src_dir.is_dir():
+            site_packages_dirs = site.getsitepackages()
+            if site_packages_dirs:
+                pth_path = Path(site_packages_dirs[0]) / "neatstel_prepend_src.pth"
+                pth_line = (
+                    "import sys; p=r\"{}\"; sys.path.insert(0, sys.path.pop(sys.path.index(p))) if p in sys.path else sys.path.insert(0,p)\n"
+                ).format(str(project_src_dir))
+                pth_path.write_text(pth_line)
+
+            candidates = []
+            patterns = (
+                "libgyronimo*.so*",
+                "libgyronimo*.dylib*",
+                "libsimple*.so*",
+                "libsimple*.dylib*",
+                "librkf45*.so*",
+                "librkf45*.dylib*",
+                "_pysimple*.so*",
+                "_pysimple*.dylib*",
+                "pysimple.py",
+            )
+            for pattern in patterns:
+                candidates.extend(Path(extdir).glob(pattern))
+                candidates.extend(Path(self.build_temp).rglob(pattern))
+            candidates = sorted(
+                candidates,
+                key=lambda p: (".so." in p.name or ".dylib." in p.name, len(p.name)),
+                reverse=True,
+            )
+            seen_names = set()
+            for candidate in candidates:
+                if candidate.name in seen_names:
+                    continue
+                try:
+                    resolved = candidate.resolve(strict=True)
+                except FileNotFoundError:
+                    continue
+                seen_names.add(candidate.name)
+                shutil.copy2(resolved, project_src_dir / candidate.name)
 
 setup(
     cmake_args=d['cmake_args'],
