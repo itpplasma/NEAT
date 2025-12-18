@@ -4,5 +4,5 @@
         branch = neat
 [submodule "external/simple"]
 	path = external/simple
-	url = https://github.com/rogeriojorge/SIMPLE.git
-	branch = optimization
+	url = https://github.com/itpplasma/SIMPLE.git
+	branch = compat/neat
