@@ -7,6 +7,7 @@ import numpy as np
 from numpy.testing import assert_almost_equal
 
 from neat.fields import Simple, Stellna, StellnaQS, Vmec
+from neat.simple_classification import SimpleLossResult
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -87,166 +88,78 @@ class NEATtests(unittest.TestCase):
             multharm=3,
         )
         self.vmec = Vmec(self.wout_filename)
-        self.nfp = [2]
-        self.G0 = [0.5]
-        self.G2 = [0.3]
-        self.I2 = [0.2]
-        self.iota = [0.1]
-        self.iotaN = [0.15]
-        self.Bbar = [1.0]
-        self.varphi = np.array([0.0, 0.5, 1.0])
-        self.B0 = np.array([1.0, 0.8, 0.6])
-        self.B1c = np.array([0.2, 0.3, 0.4])
-        self.B1s = np.array([0.1, 0.15, 0.2])
-        self.B20 = np.array([0.05, 0.06, 0.07])
-        self.B2c_array = np.array([0.01, 0.02, 0.03])
-        self.B2s_array = np.array([0.02, 0.03, 0.04])
-        self.beta_0 = np.array([0.8, 0.9, 1.0])
-        self.beta_1c = np.array([0.3, 0.4, 0.5])
-        self.beta_1s = np.array([0.2, 0.25, 0.3])
-        self.expected_result = (
-            int(self.nfp[0]),
-            self.G0[0],
-            self.G2[0],
-            self.I2[0],
-            self.iota[0],
-            self.iotaN[0],
-            self.Bbar[0],
-            np.append(self.varphi, 2 * np.pi / self.nfp[0] + self.varphi[0]),
-            np.append(self.B0, self.B0[0]),
-            np.append(self.B1c, self.B1c[0]),
-            np.append(self.B1s, self.B1s[0]),
-            np.append(self.B20, self.B20[0]),
-            np.append(self.B2c_array, self.B2c_array[0]),
-            np.append(self.B2s_array, self.B2s_array[0]),
-            np.append(self.beta_0, self.beta_0[0]),
-            np.append(self.beta_1c, self.beta_1c[0]),
-            np.append(self.beta_1s, self.beta_1s[0]),
+
+    def test_stellna_gyronimo_parameters(self):
+        field = Stellna.from_paper(1)
+        result = field.gyronimo_parameters()
+
+        self.assertIsInstance(result[0], int)
+        self.assertEqual(result[0], int(field.nfp))
+
+        varphi = result[7]
+        self.assertEqual(len(varphi), len(field.varphi) + 1)
+        self.assertAlmostEqual(varphi[-1], 2 * np.pi / field.nfp + varphi[0])
+
+    def test_simple_run_loss_populates_params(self):
+        from pathlib import Path
+
+        fake_confined = np.array(
+            [
+                [0.0, 0.5, 0.5, 2.0],
+                [1.0e-3, 0.5, 0.25, 2.0],
+            ],
+            dtype=float,
         )
-
-    def test_gyronimo_parameters(self):
-        result = Stellna(
-            self.nfp,
-            self.G0,
-            self.G2,
-            self.I2,
-            self.iota,
-            self.iotaN,
-            self.Bbar,
-            self.varphi,
-            self.B0,
-            self.B1c,
-            self.B1s,
-            self.B20,
-            self.B2c_array,
-            self.B2s_array,
-            self.beta_0,
-            self.beta_1c,
-            self.beta_1s,
+        fake_times_lost = np.array(
+            [
+                [1, 1.0e-3, -0.1, 0.5, 0.01, 0, 0, 0, 0, 0],
+                [2, 5.0e-4, 0.2, 0.5, 0.02, 0, 0, 0, 0, 0],
+            ],
+            dtype=float,
         )
-        # Verifique se o resultado é igual ao valor esperado
-        self.assertEqual(result, self.expected_result)
-        # Verifique se os arrays no resultado têm o tamanho correto
-        self.assertEqual(len(result[7]), len(self.varphi) + 1)
-        self.assertEqual(len(result[8]), len(self.B0) + 1)
-        self.assertEqual(len(result[9]), len(self.B1c) + 1)
-        self.assertEqual(len(result[10]), len(self.B1s) + 1)
-        self.assertEqual(len(result[11]), len(self.B20) + 1)
-        self.assertEqual(len(result[12]), len(self.B2c_array) + 1)
-        self.assertEqual(len(result[13]), len(self.B2s_array) + 1)
-        self.assertEqual(len(result[14]), len(self.beta_0) + 1)
-        self.assertEqual(len(result[15]), len(self.beta_1c) + 1)
-        self.assertEqual(len(result[16]), len(self.beta_1s) + 1)
+        fake_loss_fraction_vs_time = 1.0 - (fake_confined[:, 1] + fake_confined[:, 2])
 
-    def test_simple_single_particle_tracer(self):
-        # Set up input parameters for the single particle tracer
-        Tracy = self.simple_object.tracy
-        Rmajor = self.simple_object.Rmajor
-        Simple = self.simple_object.simple
-        charge = 1.0
-        mass = 1.0
-        Lambda = 0.5
-        vpp_sign = 1.0
-        energy = 1.0
-        r_initial = 1.0
-        theta_initial = 0.0
-        phi_initial = 0.0
-        nsamples = 100
-        tfinal = 1.0
+        with patch("neat.fields.run_simple_loss") as mocked:
+            mocked.return_value = SimpleLossResult(
+                workdir=Path("/tmp/neat_test_simple_workdir"),
+                confined_fraction=fake_confined,
+                times_lost=fake_times_lost,
+                loss_fraction=float(fake_loss_fraction_vs_time[-1]),
+                loss_fraction_vs_time=fake_loss_fraction_vs_time,
+            )
 
-        result = self.simple_object.simple_single_particle_tracer(
-            Tracy,
-            Rmajor,
-            Simple,
-            charge,
-            mass,
-            Lambda,
-            vpp_sign,
-            energy,
-            r_initial,
-            theta_initial,
-            phi_initial,
-            nsamples,
-            tfinal,
-        )
+            params = self.simple_object.run_loss(
+                tfinal=1.0e-3,
+                nsamples=2,
+                nparticles=2,
+                npoiper=123,
+                npoiper2=321,
+                nper=999,
+                notrace_passing=1,
+                deterministic=True,
+                timeout_s=1.0,
+            )
 
-        expected_shape = (15,)
-        self.assertEqual(result[0].shape, expected_shape)
+            self.assertIsNotNone(self.simple_object.params)
+            self.assertEqual(params.trace_time, 1.0e-3)
+            np.testing.assert_allclose(params.time, fake_confined[:, 0])
+            np.testing.assert_allclose(params.confpart_pass, fake_confined[:, 1])
+            np.testing.assert_allclose(params.confpart_trap, fake_confined[:, 2])
+            np.testing.assert_allclose(params.times_lost, fake_times_lost[:, 1])
+            np.testing.assert_allclose(params.perp_inv, fake_times_lost[:, 4])
 
-    def test_simple_ensemble_particle_tracer(self):
-        # Set up input parameters for the ensemble particle tracer
-
-        Tracy = self.simple_object.tracy
-        Rmajor = self.simple_object.Rmajor
-        Simple = self.simple_object.simple
-
-        nlambda_trapped = 10
-        nlambda_passing = 10
-        r_initial = 0.1
-        r_max = 0.9
-        ntheta = 20
-        nphi = 20
-        nthreads = 4
-        vparallel_over_v_min = -0.3
-        vparallel_over_v_max = 0.3
-        npoiper = 100
-        npoiper2 = 100
-        nper = 1000
-        nsamples = 2000
-        tfinal = 0.001
-        r_initial = 0.12
-        energy = 3.52e6
-        charge = 2
-        mass = 4
-
-        result = self.simple_object.simple_ensemble_particle_tracer(
-            Tracy,
-            Rmajor,
-            Simple,
-            charge,
-            mass,
-            energy,
-            nlambda_trapped,
-            nlambda_passing,
-            r_initial,
-            r_max,
-            ntheta,
-            nphi,
-            nsamples,
-            tfinal,
-            nthreads,
-            vparallel_over_v_min,
-            vparallel_over_v_max,
-            npoiper,
-            npoiper2,
-            nper,
-        )
-
-        # Perform assertions on the result
-
-        # Example assertion: check if time array has the correct shape
-        expected_shape = (nsamples,)
-        self.assertEqual(result[0].shape, expected_shape)
+            _, kwargs = mocked.call_args
+            cfg = kwargs["config"]
+            self.assertEqual(cfg["ntestpart"], 2)
+            self.assertEqual(cfg["ntimstep"], 2)
+            self.assertEqual(cfg["trace_time"], 1.0e-3)
+            self.assertEqual(cfg["multharm"], 3)
+            self.assertEqual(cfg["ns_s"], 3)
+            self.assertEqual(cfg["ns_tp"], 3)
+            self.assertEqual(cfg["vmec_B_scale"], 1.0)
+            self.assertEqual(cfg["vmec_RZ_scale"], 1.0)
+            self.assertEqual(cfg["notrace_passing"], 1)
+            self.assertTrue(cfg["deterministic"])
 
     def tearDown(self):
         pass
@@ -255,7 +168,7 @@ class NEATtests(unittest.TestCase):
         self.assertEqual(self.vmec.near_axis, False)
         self.assertEqual(self.vmec.wout_filename, self.wout_filename)
 
-    def test_gyronimo_parameters(self):
+    def test_vmec_gyronimo_parameters(self):
         expected_parameters = [self.wout_filename]
         self.assertEqual(self.vmec.gyronimo_parameters(), expected_parameters)
 

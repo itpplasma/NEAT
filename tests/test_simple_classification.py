@@ -6,9 +6,12 @@ import numpy as np
 
 from neat.simple_classification import (
     compute_classification_metric,
+    compute_weighted_simple_score,
     default_fast_classification_config,
     parse_class_parts,
+    parse_confined_fraction,
     parse_times_lost,
+    trapped_confined_fraction,
     write_simple_in,
 )
 
@@ -68,12 +71,26 @@ class SimpleClassificationTests(unittest.TestCase):
 
             parsed_class = parse_class_parts(workdir / "class_parts.dat")
             parsed_times = parse_times_lost(workdir / "times_lost.dat")
+            confined_fraction = np.array(
+                [
+                    [0.0, 0.5, 0.5, 4.0],
+                    [1.0, 0.5, 0.25, 4.0],
+                ],
+                dtype=float,
+            )
+            np.savetxt(workdir / "confined_fraction.dat", confined_fraction)
+            parsed_confined = parse_confined_fraction(workdir / "confined_fraction.dat")
             score, counts = compute_classification_metric(
                 class_parts=parsed_class,
                 times_lost=parsed_times,
                 workdir=workdir,
-                w_good=1.0,
-                w_prompt=1.0,
+                confined_fraction=parsed_confined,
+                weights={
+                    "confined_trapped": 1.0,
+                    "ideal_trapped": 1.0,
+                    "jpar_trapped": 1.0,
+                },
+                w_prompt=0.0,
             )
 
             self.assertEqual(counts.n_particles, 4)
@@ -88,10 +105,19 @@ class SimpleClassificationTests(unittest.TestCase):
 
             self.assertAlmostEqual(counts.ideal_fraction_trapped, 0.5)
             self.assertAlmostEqual(counts.jpar_good_fraction_trapped, 0.5)
-            self.assertAlmostEqual(counts.good_fraction_trapped, 0.5)
             self.assertAlmostEqual(counts.prompt_loss_fraction, 0.5)
 
-            self.assertAlmostEqual(score, 0.5 - 0.5)
+            self.assertAlmostEqual(trapped_confined_fraction(parsed_confined), 0.5)
+            self.assertAlmostEqual(
+                compute_weighted_simple_score(
+                    trapped_confined_fraction=0.5,
+                    ideal_fraction=0.5,
+                    jpar_good_fraction=0.5,
+                    weights=None,
+                ),
+                0.5,
+            )
+            self.assertAlmostEqual(score, 0.5)
 
 
 if __name__ == "__main__":

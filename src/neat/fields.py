@@ -20,6 +20,8 @@ except ImportError as error:
     simple_loaded = False
 
 import copy
+from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 from qic import Qic
@@ -37,6 +39,7 @@ from neatpp import (
 )
 
 from .constants import ELEMENTARY_CHARGE, PROTON_MASS
+from .simple_classification import run_simple_loss
 
 try:
     from simsopt._core import Optimizable
@@ -48,6 +51,29 @@ except ImportError as error:
     class Optimizable:
         def __init__(self, *args, **kwargs):
             pass
+
+
+@dataclass
+class SimpleRunParams:
+    time: np.ndarray
+    trace_time: float
+    times_lost: np.ndarray
+    confpart_pass: np.ndarray
+    confpart_trap: np.ndarray
+    perp_inv: np.ndarray
+
+
+def _default_simple_executable() -> str | None:
+    repo_root = Path(__file__).resolve().parents[2]
+    candidates = [
+        repo_root / "external" / "simple" / "build" / "simple.x",
+        repo_root / "external" / "simple" / "build" / "Release" / "simple.x",
+        repo_root / "external" / "simple" / "build" / "Fast" / "simple.x",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return str(candidate)
+    return None
 
 
 class Stellna(Qic, Optimizable):
@@ -252,7 +278,7 @@ class StellnaQS(Qsc, Optimizable):
 
 if simple_loaded:
 
-    class Simple:
+    class SimpleF2PY:
         """SIMPLE class
         This class initializes a SIMPLE-based particle
         tracer that reads vmec input files.
@@ -482,6 +508,93 @@ if simple_loaded:
             )
 
             return return_array
+
+
+class Simple:
+    """
+    SIMPLE field wrapper used by NEAT.
+
+    This is a binary-backed interface: NEAT runs `simple.x` in a temporary
+    directory and parses `times_lost.dat` and `confined_fraction.dat`.
+    """
+
+    def __init__(
+        self,
+        wout_filename: str,
+        B_scale: float = 1,
+        Aminor_scale: float = 1,
+        multharm: int = 3,
+        ns_s: int = 3,
+        ns_tp: int = 3,
+        simple_executable: str | None = None,
+    ) -> None:
+        self.near_axis = False
+        self.wout_filename = wout_filename
+        net_file = netcdf_file(self.wout_filename, "r", mmap=False)
+        self.nfp = int(net_file.variables["nfp"][()])
+        self.Rmajor = float(net_file.variables["Rmajor_p"][()])
+        net_file.close()
+
+        self.B_scale = float(B_scale)
+        self.Aminor_scale = float(Aminor_scale)
+        self.multharm = int(multharm)
+        self.ns_s = int(ns_s)
+        self.ns_tp = int(ns_tp)
+
+        self.simple_executable = simple_executable or _default_simple_executable()
+        self.params: SimpleRunParams | None = None
+
+    def run_loss(
+        self,
+        *,
+        tfinal: float,
+        nsamples: int,
+        nparticles: int,
+        nthreads: int = 1,
+        notrace_passing: int = 0,
+        npoiper: int = 100,
+        npoiper2: int = 256,
+        nper: int = 1000,
+        deterministic: bool = True,
+        keep_workdir: bool = False,
+        timeout_s: float | None = 300.0,
+    ) -> SimpleRunParams:
+        cfg = {
+            "ntestpart": int(nparticles),
+            "trace_time": float(tfinal),
+            "ntimstep": int(nsamples),
+            "npoiper": int(npoiper),
+            "npoiper2": int(npoiper2),
+            "nper": int(nper),
+            "multharm": int(self.multharm),
+            "ns_s": int(self.ns_s),
+            "ns_tp": int(self.ns_tp),
+            "vmec_B_scale": float(self.B_scale),
+            "vmec_RZ_scale": float(self.Aminor_scale),
+            "deterministic": bool(deterministic),
+            "notrace_passing": int(notrace_passing),
+        }
+
+        result = run_simple_loss(
+            wout_path=self.wout_filename,
+            config=cfg,
+            simple_executable=self.simple_executable,
+            keep_workdir=keep_workdir,
+            timeout_s=timeout_s,
+        )
+
+        times_lost = result.times_lost
+        confined = result.confined_fraction
+        params_obj = SimpleRunParams(
+            time=confined[:, 0],
+            trace_time=float(tfinal),
+            times_lost=times_lost[:, 1],
+            confpart_pass=confined[:, 1],
+            confpart_trap=confined[:, 2],
+            perp_inv=times_lost[:, 4],
+        )
+        self.params = params_obj
+        return params_obj
 
 
 class Vmec:

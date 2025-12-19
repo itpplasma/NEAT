@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """ Tracing module of NEAT
 
 This script performs the tracing of particles by
@@ -525,7 +527,7 @@ class ParticleEnsembleOrbit_Simple:  # pylint: disable=R0902
     def __init__(
         self,
         particles: ChargedParticleEnsemble,
-        field: Union[StellnaQS, Stellna],
+        field: Simple,
         nsamples=5000,
         tfinal=0.001,
         nthreads=2,
@@ -551,45 +553,24 @@ class ParticleEnsembleOrbit_Simple:  # pylint: disable=R0902
         self.npoiper2 = npoiper2
         self.nper = nper
 
-        # self.field.constant_b20 = constant_b20
-
-        self.gyronimo_parameters = [
-            *self.field.gyronimo_parameters(),
-            *self.particles.gyronimo_parameters(),
-            self.nsamples,
-            self.nparticles,
-            self.tfinal,
-            self.nthreads,
-            self.notrace_passing,
-            self.npoiper,
-            self.npoiper2,
-            self.nper,
-        ]
-
-        solution = np.array(
-            self.field.neatpp_solver_ensemble(
-                *self.field.gyronimo_parameters(),
-                *self.particles.gyronimo_parameters(),
-                self.nsamples,
-                self.nparticles,
-                self.tfinal,
-                self.nthreads,
-                self.notrace_passing,
-                self.npoiper,
-                self.npoiper2,
-                self.nper,
-            ),
-            dtype=object,
+        params = self.field.run_loss(
+            tfinal=self.tfinal,
+            nsamples=self.nsamples,
+            nparticles=self.nparticles,
+            nthreads=self.nthreads,
+            notrace_passing=self.notrace_passing,
+            npoiper=self.npoiper,
+            npoiper2=self.npoiper2,
+            nper=self.nper,
         )
 
-        (
-            self.time,
-            self.confpart_pass,
-            self.confpart_trap,
-            self.trace_time,
-            self.lost_times_of_particles,
-            self.perp_inv,
-        ) = solution
+        self.trace_time = params.trace_time
+        self.lost_times_of_particles = params.times_lost
+        self.perp_inv = params.perp_inv
+        self.confpart_pass = params.confpart_pass
+        self.confpart_trap = params.confpart_trap
+
+        self.time = params.time
 
         self.condi = np.logical_and(
             self.lost_times_of_particles > 0,
