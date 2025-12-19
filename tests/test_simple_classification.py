@@ -18,7 +18,7 @@ class SimpleClassificationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "simple.in"
             cfg = default_fast_classification_config(
-                ntestpart=8, trace_time_s=1e-4, class_plot=True
+                ntestpart=8, trace_time_s=1e-4, class_plot=True, tcut_s=1e-4
             )
             cfg["netcdffile"] = "wout.nc"
             write_simple_in(path, cfg)
@@ -26,7 +26,9 @@ class SimpleClassificationTests(unittest.TestCase):
             self.assertIn("&config", text)
             self.assertIn("fast_class = .True.", text)
             self.assertIn("class_plot = .True.", text)
-            self.assertIn("tcut = -1", text)
+            self.assertIn("tcut = 0.0001", text)
+            self.assertIn("multharm = 3", text)
+            self.assertIn("nturns = 8", text)
             self.assertIn("netcdffile = 'wout.nc'", text)
             self.assertTrue(text.strip().endswith("/"))
 
@@ -71,8 +73,7 @@ class SimpleClassificationTests(unittest.TestCase):
                 class_parts=parsed_class,
                 times_lost=parsed_times,
                 workdir=workdir,
-                w_ideal=1.0,
-                w_jpar=1.0,
+                w_good=1.0,
                 w_prompt=1.0,
             )
 
@@ -88,9 +89,10 @@ class SimpleClassificationTests(unittest.TestCase):
 
             self.assertAlmostEqual(counts.ideal_fraction_trapped, 0.5)
             self.assertAlmostEqual(counts.jpar_good_fraction_trapped, 0.5)
+            self.assertAlmostEqual(counts.good_fraction_trapped, 0.5)
             self.assertAlmostEqual(counts.prompt_loss_fraction, 0.5)
 
-            self.assertAlmostEqual(score, 0.5 + 0.5 - 0.5)
+            self.assertAlmostEqual(score, 0.5 - 0.5)
 
 
 if __name__ == "__main__":

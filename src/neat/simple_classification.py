@@ -21,6 +21,8 @@ class SimpleClassificationCounts:
     n_trapped_classified_nonideal: int
     n_trapped_classified_jpar_good: int
     n_trapped_classified_jpar_bad: int
+    n_trapped_classified_both_good: int
+    n_trapped_classified_both_total: int
 
     @property
     def trapped_classified_total_ideal(self) -> int:
@@ -49,6 +51,13 @@ class SimpleClassificationCounts:
         if denom <= 0:
             return 0.0
         return self.n_trapped_classified_jpar_good / denom
+
+    @property
+    def good_fraction_trapped(self) -> float:
+        denom = self.n_trapped_classified_both_total
+        if denom <= 0:
+            return 0.0
+        return self.n_trapped_classified_both_good / denom
 
 
 @dataclass(frozen=True)
@@ -86,16 +95,27 @@ def write_simple_in(path: Path, config: Mapping[str, Any]) -> None:
 def default_fast_classification_config(
     *,
     ntestpart: int,
-    trace_time_s: float,
-    class_plot: bool = True,
-    cut_in_per: float = 0.0,
+    trace_time_s: float = 1.0e-2,
+    tcut_s: float | None = 1.0e-2,
+    multharm: int = 3,
+    ns_s: int = 3,
+    ns_tp: int = 3,
+    nturns: int = 8,
+    class_plot: bool = False,
+    cut_in_per: float = 0.5,
     deterministic: bool = True,
     notrace_passing: int = 1,
 ) -> dict[str, Any]:
+    if tcut_s is None:
+        tcut_s = float(trace_time_s)
     return {
         "ntestpart": int(ntestpart),
         "trace_time": float(trace_time_s),
-        "tcut": -1.0,
+        "tcut": float(tcut_s),
+        "multharm": int(multharm),
+        "ns_s": int(ns_s),
+        "ns_tp": int(ns_tp),
+        "nturns": int(nturns),
         "class_plot": bool(class_plot),
         "cut_in_per": float(cut_in_per),
         "fast_class": True,
@@ -135,8 +155,7 @@ def compute_classification_metric(
     class_parts: np.ndarray,
     times_lost: np.ndarray,
     workdir: Path,
-    w_ideal: float = 1.0,
-    w_jpar: float = 1.0,
+    w_good: float = 1.0,
     w_prompt: float = 1.0,
 ) -> tuple[float, SimpleClassificationCounts]:
     if class_parts.shape[0] != times_lost.shape[0]:
@@ -166,6 +185,10 @@ def compute_classification_metric(
     n_trapped_classified_jpar_good = int(np.count_nonzero(trapped_ijpar == 1))
     n_trapped_classified_jpar_bad = int(np.count_nonzero(trapped_ijpar == 2))
 
+    trapped_both_classified = trapped & (ijpar != 0) & (ideal != 0)
+    n_trapped_classified_both_total = int(np.count_nonzero(trapped_both_classified))
+    n_trapped_classified_both_good = int(np.count_nonzero(trapped & (ijpar == 1) & (ideal == 1)))
+
     prompt_lost = _count_lines(workdir / "fort.10001") + _count_lines(workdir / "fort.10002")
 
     counts = SimpleClassificationCounts(
@@ -177,13 +200,11 @@ def compute_classification_metric(
         n_trapped_classified_nonideal=n_trapped_classified_nonideal,
         n_trapped_classified_jpar_good=n_trapped_classified_jpar_good,
         n_trapped_classified_jpar_bad=n_trapped_classified_jpar_bad,
+        n_trapped_classified_both_good=n_trapped_classified_both_good,
+        n_trapped_classified_both_total=n_trapped_classified_both_total,
     )
 
-    score = (
-        w_ideal * counts.ideal_fraction_trapped
-        + w_jpar * counts.jpar_good_fraction_trapped
-        - w_prompt * counts.prompt_loss_fraction
-    )
+    score = w_good * counts.good_fraction_trapped - w_prompt * counts.prompt_loss_fraction
     return score, counts
 
 
@@ -219,8 +240,7 @@ def run_simple_fast_classification(
     start_dat_path: str | os.PathLike[str] | None = None,
     keep_workdir: bool = False,
     timeout_s: float | None = 300.0,
-    w_ideal: float = 1.0,
-    w_jpar: float = 1.0,
+    w_good: float = 1.0,
     w_prompt: float = 1.0,
 ) -> SimpleClassificationResult:
     simple_x = _find_simple_x(simple_executable)
@@ -278,8 +298,7 @@ def run_simple_fast_classification(
             class_parts=class_parts,
             times_lost=times_lost,
             workdir=workdir,
-            w_ideal=w_ideal,
-            w_jpar=w_jpar,
+            w_good=w_good,
             w_prompt=w_prompt,
         )
         return SimpleClassificationResult(
@@ -292,4 +311,3 @@ def run_simple_fast_classification(
     finally:
         if temp_ctx is not None:
             temp_ctx.cleanup()
-
