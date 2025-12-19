@@ -96,32 +96,32 @@ def default_fast_classification_config(
     *,
     ntestpart: int,
     trace_time_s: float = 1.0e-2,
-    tcut_s: float | None = 1.0e-2,
+    tcut_s: float = -1.0,
     multharm: int = 3,
     ns_s: int = 3,
     ns_tp: int = 3,
-    nturns: int = 8,
+    nturns: int | None = None,
     class_plot: bool = False,
     cut_in_per: float = 0.5,
     deterministic: bool = True,
     notrace_passing: int = 1,
 ) -> dict[str, Any]:
-    if tcut_s is None:
-        tcut_s = float(trace_time_s)
-    return {
+    cfg: dict[str, Any] = {
         "ntestpart": int(ntestpart),
         "trace_time": float(trace_time_s),
         "tcut": float(tcut_s),
         "multharm": int(multharm),
         "ns_s": int(ns_s),
         "ns_tp": int(ns_tp),
-        "nturns": int(nturns),
         "class_plot": bool(class_plot),
         "cut_in_per": float(cut_in_per),
         "fast_class": True,
         "deterministic": bool(deterministic),
         "notrace_passing": int(notrace_passing),
     }
+    if nturns is not None:
+        cfg["nturns"] = int(nturns)
+    return cfg
 
 
 def _read_table(path: Path) -> np.ndarray:
