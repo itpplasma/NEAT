@@ -3,6 +3,10 @@ project(neatpp
   LANGUAGES C CXX Fortran
 )
 
+if (NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
+endif()
+
 # Enable output of compile commands during generation.
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Add the -fPIC flag using the line below
@@ -112,6 +116,37 @@ endif()
 
 add_compile_options(-DOPENMP)
 find_package(OpenMP)
+
+option(NEAT_ENABLE_NATIVE "Enable -march=native / -mtune=native" ON)
+option(NEAT_ENABLE_FAST_MATH "Enable -ffast-math (may change numerics)" ON)
+option(NEAT_ENABLE_O3 "Force -O3 (even if toolchain defaults differ)" ON)
+
+if (NOT CMAKE_BUILD_TYPE MATCHES Debug)
+    if (NEAT_ENABLE_O3)
+        add_compile_options(
+            $<$<COMPILE_LANGUAGE:C>:-O3>
+            $<$<COMPILE_LANGUAGE:CXX>:-O3>
+            $<$<COMPILE_LANGUAGE:Fortran>:-O3>
+        )
+    endif()
+    if (NEAT_ENABLE_NATIVE)
+        add_compile_options(
+            $<$<COMPILE_LANGUAGE:C>:-march=native>
+            $<$<COMPILE_LANGUAGE:C>:-mtune=native>
+            $<$<COMPILE_LANGUAGE:CXX>:-march=native>
+            $<$<COMPILE_LANGUAGE:CXX>:-mtune=native>
+            $<$<COMPILE_LANGUAGE:Fortran>:-march=native>
+            $<$<COMPILE_LANGUAGE:Fortran>:-mtune=native>
+        )
+    endif()
+    if (NEAT_ENABLE_FAST_MATH)
+        add_compile_options(
+            $<$<COMPILE_LANGUAGE:C>:-ffast-math>
+            $<$<COMPILE_LANGUAGE:CXX>:-ffast-math>
+            $<$<COMPILE_LANGUAGE:Fortran>:-ffast-math>
+        )
+    endif()
+endif()
 
 # Add BOOST
 find_package(Boost 1.71.0)
