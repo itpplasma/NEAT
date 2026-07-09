@@ -555,6 +555,7 @@ class Simple:
         npoiper: int = 100,
         npoiper2: int = 256,
         nper: int = 1000,
+        sbeg: float | None = None,
         deterministic: bool = True,
         keep_workdir: bool = False,
         timeout_s: float | None = 300.0,
@@ -574,6 +575,9 @@ class Simple:
             "deterministic": bool(deterministic),
             "notrace_passing": int(notrace_passing),
         }
+        if sbeg is not None:
+            cfg["sbeg"] = float(sbeg)
+            cfg["num_surf"] = 1
 
         result = run_simple_loss(
             wout_path=self.wout_filename,

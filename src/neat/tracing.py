@@ -562,6 +562,7 @@ class ParticleEnsembleOrbit_Simple:  # pylint: disable=R0902
             npoiper=self.npoiper,
             npoiper2=self.npoiper2,
             nper=self.nper,
+            sbeg=self.particles.r_initial,
         )
 
         self.trace_time = params.trace_time
