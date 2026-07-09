@@ -20,6 +20,7 @@ except ImportError as error:
     simple_loaded = False
 
 import copy
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -73,7 +74,7 @@ def _default_simple_executable() -> str | None:
     for candidate in candidates:
         if candidate.exists():
             return str(candidate)
-    return None
+    return shutil.which("simple.x")
 
 
 class Stellna(Qic, Optimizable):

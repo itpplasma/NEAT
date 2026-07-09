@@ -10,8 +10,6 @@ from neat.tracing import (
     ParticleOrbit,
 )
 
-from pysimple import orbit_symplectic  # isort:skip
-
 
 class testtracing(unittest.TestCase):
     def importtest_StellnaQS(self):
