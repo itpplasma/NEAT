@@ -5,7 +5,10 @@
 - `src/neat/`: primary Python package (import as `neat`).
 - `src/neatpp/`: native extension sources (C++/Fortran via CMake + pybind11).
 - `external/gyronimo/`: vendored dependency (git submodule) used for orbit tracing.
-- `external/simple/`: optional benchmark dependency (enabled via CMake `INSTALL_SIMPLE`).
+- `external/simple/`: SIMPLE reference pin (git submodule). Not built by NEAT:
+  modern SIMPLE assumes it is the top-level CMake project, so `INSTALL_SIMPLE`
+  defaults to OFF and `neat.fields.Simple` imports `pysimple` from the
+  environment (`pip install -e external/simple` or a SIMPLE checkout).
 - `tests/`: `unittest` suite; test data lives in `tests/inputs/`.
 - `examples/`: runnable scripts that demonstrate common workflows.
 - `docs/`: Sphinx documentation (`docs/source/` is the source tree).
